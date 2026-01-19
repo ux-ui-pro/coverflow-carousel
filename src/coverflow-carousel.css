@@ -1,0 +1,166 @@
+:host {
+  display: block;
+  width: 100%;
+  height: 100%;
+  container-type: inline-size;
+  overflow: hidden;
+}
+
+.cfc {
+  /* Layout */
+  --cfc-card-ar-num: 1.25;
+  --cfc-card-w: clamp(160px, 100vw - 120px, 380px);
+  --cfc-card-ar: 1 / var(--cfc-card-ar-num);
+
+  /* Motion / depth */
+  --cfc-step-x: min(22vw, 250px);
+  --cfc-step-z: calc(var(--cfc-card-w) * 0.5);
+
+  /* Visual falloff */
+  --cfc-scale-step: 0.1;
+
+  /* Transitions */
+  --cfc-transition-ms: 550ms;
+  --cfc-easing: cubic-bezier(0.785, 0.135, 0.15, 0.86);
+
+  /* Controls */
+  --cfc-arrow-size: 50px;
+
+  /* CSS-only "parking strategy" for hidden cards */
+  --cfc-park-x: 0px;
+  --cfc-park-z: calc(var(--cfc-step-z) * -6);
+  --cfc-park-scale: 0.1;
+
+  margin: auto;
+  width: min(900px, 100%);
+  height: 100%;
+  position: relative;
+  perspective: 1000px;
+}
+
+.cfc__track {
+  width: 100%;
+  height: calc(var(--cfc-card-w) * var(--cfc-card-ar-num));
+  position: relative;
+  transform-style: preserve-3d;
+}
+
+.cfc__card {
+  /* Inputs from JS */
+  --cfc-delta: 0;
+  --cfc-abs: 0;
+
+  /* Derived values */
+  --cfc-scale: clamp(0.1, calc(1 - (var(--cfc-abs) * var(--cfc-scale-step))), 1);
+  --cfc-x: calc(var(--cfc-step-x) * var(--cfc-delta));
+  --cfc-z: calc(var(--cfc-step-z) * -1 * var(--cfc-abs));
+  --cfc-zIndex: calc(100 - var(--cfc-abs));
+
+  /* Effective values (can be overridden when hidden/active) */
+  --cfc-scale-effective: var(--cfc-scale);
+  --cfc-x-effective: var(--cfc-x);
+  --cfc-z-effective: var(--cfc-z);
+
+  pointer-events: auto;
+
+  position: absolute;
+  inset: 50% 0 0 50%;
+  width: var(--cfc-card-w);
+  aspect-ratio: var(--cfc-card-ar);
+  overflow: hidden;
+
+  z-index: var(--cfc-zIndex);
+
+  transform-style: preserve-3d;
+  transform: translate(-50%, -50%) translate3d(var(--cfc-x-effective), 0px, var(--cfc-z-effective))
+    scale(var(--cfc-scale-effective));
+
+  transition: transform var(--cfc-transition-ms) var(--cfc-easing);
+}
+
+.cfc__card[aria-hidden="false"] {
+  will-change: transform;
+}
+
+.cfc__card[aria-hidden="true"] {
+  /* CSS-only parking strategy */
+  --cfc-x-effective: var(--cfc-park-x);
+  --cfc-z-effective: var(--cfc-park-z);
+  --cfc-scale-effective: var(--cfc-park-scale);
+
+  pointer-events: none;
+}
+
+.cfc__card[data-active="true"] {
+  --cfc-scale-effective: 1;
+}
+
+.cfc__card ::slotted(img),
+.cfc__card img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center;
+}
+
+.cfc__arrow {
+  position: absolute;
+  top: calc(50% - var(--cfc-arrow-size));
+  width: var(--cfc-arrow-size);
+  height: var(--cfc-arrow-size);
+  border: none;
+  background: Crimson;
+  cursor: pointer;
+  z-index: 50;
+  transition: background 0.25s ease;
+}
+
+.cfc__arrow:hover {
+  background: LightGray;
+}
+
+.cfc__arrow--left {
+  left: 20px;
+}
+
+.cfc__arrow--right {
+  right: 20px;
+}
+
+.cfc__dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 50px;
+}
+
+.cfc__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: LightGray;
+  cursor: default;
+  transition:
+    transform 0.25s ease,
+    background 0.25s ease;
+}
+
+.cfc__dot[data-active="true"] {
+  background: Crimson;
+  transform: scale(1.2);
+}
+
+/* SR-only */
+.cfc__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
