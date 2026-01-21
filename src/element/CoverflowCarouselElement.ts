@@ -43,7 +43,11 @@ export class CoverflowCarouselElement extends HTMLElement {
   private nextBtn!: HTMLButtonElement;
   private liveRegion!: HTMLElement;
 
-  private styleEl: HTMLStyleElement | null = null;
+  private baseStyles: StylesInput = null;
+  private overrideStyles: StylesInput = null;
+
+  private baseStyleEl: HTMLStyleElement | null = null;
+  private overrideStyleEl: HTMLStyleElement | null = null;
 
   private cards: HTMLElement[] = [];
   private dots: HTMLElement[] = [];
@@ -61,12 +65,22 @@ export class CoverflowCarouselElement extends HTMLElement {
 
   private cleanup: Array<() => void> = [];
 
+  private readonly lightDomObserverOptions: MutationObserverInit = {
+    childList: true,
+    attributes: true,
+    subtree: true,
+  };
+  private lightDomObserver: MutationObserver | null = null;
+  private refreshScheduled = false;
+  private suppressMutations = false;
+
   private reflectGuard = false;
 
   connectedCallback(): void {
     this.render();
     this.readAttributes({ isInit: true });
     this.refresh();
+    this.setupLightDomObserver();
   }
 
   disconnectedCallback(): void {
@@ -123,6 +137,14 @@ export class CoverflowCarouselElement extends HTMLElement {
   }
 
   public refresh(): void {
+    const observer = this.lightDomObserver;
+
+    if (observer) {
+      this.suppressMutations = true;
+      observer.disconnect();
+      observer.takeRecords();
+    }
+
     this.rebuildCardsFromLightDom();
 
     const startIndex = readIntAttr(this, 'start-index', 0);
@@ -143,6 +165,12 @@ export class CoverflowCarouselElement extends HTMLElement {
 
     this.applyLayoutAndA11y({ announce: true, emitChange: false });
     this.dispatchReady();
+
+    if (observer) {
+      observer.observe(this, this.lightDomObserverOptions);
+      observer.takeRecords();
+      this.suppressMutations = false;
+    }
   }
 
   public destroy(): void {
@@ -162,11 +190,15 @@ export class CoverflowCarouselElement extends HTMLElement {
   }
 
   public adoptStylesheet(sheet: CSSStyleSheet): void {
-    this.applyStyles(sheet);
+    this.setBaseStyles(sheet);
   }
 
   public adoptStyles(styles: StylesInput): void {
-    this.applyStyles(styles);
+    this.setBaseStyles(styles);
+  }
+
+  public adoptStyleOverrides(styles: StylesInput): void {
+    this.setOverrideStyles(styles);
   }
 
   private readAttributes(opts: { isInit: boolean }): void {
@@ -189,7 +221,7 @@ export class CoverflowCarouselElement extends HTMLElement {
   }
 
   private render(): void {
-    this.applyStyles(null);
+    this.applyAllStyles();
 
     this.rootEl = document.createElement('div');
     this.rootEl.className = 'cfc';
@@ -221,7 +253,8 @@ export class CoverflowCarouselElement extends HTMLElement {
 
     this.shadow.innerHTML = '';
 
-    if (this.styleEl) this.shadow.append(this.styleEl);
+    if (this.baseStyleEl) this.shadow.append(this.baseStyleEl);
+    if (this.overrideStyleEl) this.shadow.append(this.overrideStyleEl);
 
     this.shadow.append(this.rootEl);
 
@@ -301,30 +334,61 @@ export class CoverflowCarouselElement extends HTMLElement {
     );
   }
 
+  private setupLightDomObserver(): void {
+    if (this.lightDomObserver) return;
+
+    this.lightDomObserver = new MutationObserver((mutations) => {
+      if (this.suppressMutations) return;
+
+      const shouldRefresh = mutations.some((mutation) => {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'slot') return false;
+        return true;
+      });
+
+      if (!shouldRefresh) return;
+
+      this.scheduleRefreshFromMutations();
+    });
+
+    this.lightDomObserver.observe(this, {
+      ...this.lightDomObserverOptions,
+    });
+
+    this.cleanup.push(() => {
+      this.lightDomObserver?.disconnect();
+      this.lightDomObserver = null;
+    });
+  }
+
+  private scheduleRefreshFromMutations(): void {
+    if (this.refreshScheduled) return;
+
+    this.refreshScheduled = true;
+
+    queueMicrotask(() => {
+      this.refreshScheduled = false;
+
+      if (!this.isConnected) return;
+
+      this.refresh();
+    });
+  }
+
   private rebuildCardsFromLightDom(): void {
     const existingCards = Array.from(this.trackEl.children).filter(
       (n): n is HTMLElement => n instanceof HTMLElement && n.classList.contains('cfc__card'),
     );
 
-    const existingSlides: HTMLElement[] = [];
+    const nextCards: HTMLElement[] = [];
 
-    existingCards.forEach((card) => {
-      const slide = card.firstElementChild;
-
-      if (slide instanceof HTMLElement) existingSlides.push(slide);
-    });
-
-    const newLightDomSlides = Array.from(this.children).filter(
+    const slides = Array.from(this.children).filter(
       (n): n is HTMLElement => n instanceof HTMLElement,
     );
-
-    const slides = [...existingSlides, ...newLightDomSlides];
-
-    const nextCards: HTMLElement[] = [];
 
     for (let i = 0; i < slides.length; i++) {
       const slide = slides[i];
       const card = existingCards[i] ?? document.createElement('div');
+      const slotName = `${this.instanceId}-slot-${i}`;
 
       if (!existingCards[i]) {
         card.className = 'cfc__card';
@@ -332,8 +396,22 @@ export class CoverflowCarouselElement extends HTMLElement {
         this.trackEl.append(card);
       }
 
-      if (card.firstElementChild !== slide) {
-        card.replaceChildren(slide);
+      if (slide.getAttribute('slot') !== slotName) {
+        slide.setAttribute('slot', slotName);
+      }
+
+      const existingSlot = card.querySelector('slot');
+      let slotEl: HTMLSlotElement;
+
+      if (existingSlot instanceof HTMLSlotElement) {
+        slotEl = existingSlot;
+      } else {
+        slotEl = document.createElement('slot');
+        card.replaceChildren(slotEl);
+      }
+
+      if (slotEl.name !== slotName) {
+        slotEl.name = slotName;
       }
 
       nextCards.push(card);
@@ -615,42 +693,85 @@ export class CoverflowCarouselElement extends HTMLElement {
     }
   }
 
-  private applyStyles(styles: StylesInput): void {
-    if (typeof styles === 'string') {
-      if (supportsAdoptedStyleSheets(this.shadow)) {
-        const sheet = makeConstructableSheet(styles);
+  private setBaseStyles(styles: StylesInput): void {
+    this.baseStyles = styles ?? null;
+    this.applyAllStyles();
+  }
 
-        if (sheet) {
-          this.shadow.adoptedStyleSheets = [sheet];
-          this.styleEl = null;
+  private setOverrideStyles(styles: StylesInput): void {
+    this.overrideStyles = styles ?? null;
+    this.applyAllStyles();
+  }
 
+  private applyAllStyles(): void {
+    const base = this.baseStyles;
+    const overrides = this.overrideStyles;
+
+    const canAdopt = supportsAdoptedStyleSheets(this.shadow);
+
+    if (canAdopt) {
+      const sheets: CSSStyleSheet[] = [];
+
+      if (typeof base === 'string') {
+        const sheet = makeConstructableSheet(base);
+        if (!sheet) {
+          this.applyAllStylesFallback();
           return;
         }
+        sheets.push(sheet);
+      } else if (base) {
+        sheets.push(base);
+      } else if (CoverflowCarouselElement.defaultStylesheet) {
+        sheets.push(CoverflowCarouselElement.defaultStylesheet);
+      } else {
+        this.applyAllStylesFallback();
+        return;
       }
 
-      if (!this.styleEl) this.styleEl = document.createElement('style');
+      if (typeof overrides === 'string') {
+        const sheet = makeConstructableSheet(overrides);
+        if (!sheet) {
+          this.applyAllStylesFallback();
+          return;
+        }
+        sheets.push(sheet);
+      } else if (overrides) {
+        sheets.push(overrides);
+      }
 
-      this.styleEl.textContent = styles;
+      this.shadow.adoptedStyleSheets = sheets;
+
+      this.baseStyleEl?.remove();
+      this.overrideStyleEl?.remove();
+      this.baseStyleEl = null;
+      this.overrideStyleEl = null;
 
       return;
     }
 
-    if (styles && supportsAdoptedStyleSheets(this.shadow)) {
-      this.shadow.adoptedStyleSheets = [styles];
-      this.styleEl = null;
+    this.applyAllStylesFallback();
+  }
 
-      return;
+  private applyAllStylesFallback(): void {
+    const base = this.baseStyles;
+    const overrides = this.overrideStyles;
+
+    if (supportsAdoptedStyleSheets(this.shadow)) {
+      this.shadow.adoptedStyleSheets = [];
     }
 
-    if (CoverflowCarouselElement.defaultStylesheet && supportsAdoptedStyleSheets(this.shadow)) {
-      this.shadow.adoptedStyleSheets = [CoverflowCarouselElement.defaultStylesheet];
-      this.styleEl = null;
+    const baseCssText = typeof base === 'string' ? base : DEFAULT_CSS_TEXT_RAW;
+    const overridesCssText = typeof overrides === 'string' ? overrides : '';
 
-      return;
+    if (!this.baseStyleEl) this.baseStyleEl = document.createElement('style');
+    this.baseStyleEl.textContent = baseCssText;
+
+    if (overridesCssText) {
+      if (!this.overrideStyleEl) this.overrideStyleEl = document.createElement('style');
+      this.overrideStyleEl.textContent = overridesCssText;
+    } else {
+      this.overrideStyleEl?.remove();
+      this.overrideStyleEl = null;
     }
-
-    if (!this.styleEl) this.styleEl = document.createElement('style');
-
-    this.styleEl.textContent = DEFAULT_CSS_TEXT_RAW;
   }
 }

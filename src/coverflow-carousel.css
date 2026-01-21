@@ -4,9 +4,7 @@
   height: 100%;
   container-type: inline-size;
   overflow: hidden;
-}
 
-.cfc {
   /* Layout */
   --cfc-card-ar-num: 1.25;
   --cfc-card-w: clamp(160px, 100vw - 120px, 380px);
@@ -30,7 +28,9 @@
   --cfc-park-x: 0px;
   --cfc-park-z: calc(var(--cfc-step-z) * -6);
   --cfc-park-scale: 0.1;
+}
 
+.cfc {
   margin: auto;
   width: min(900px, 100%);
   height: 100%;

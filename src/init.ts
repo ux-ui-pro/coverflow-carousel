@@ -9,6 +9,7 @@ export type InitCoverflowCarouselsOptions = {
     detail: { index: number; length: number; percent: number },
   ) => void;
   stylesheet?: CSSStyleSheet | string | null;
+  styleOverrides?: CSSStyleSheet | string | null;
 };
 
 export function initCoverflowCarousels(options: InitCoverflowCarouselsOptions = {}): HTMLElement[] {
@@ -18,6 +19,7 @@ export function initCoverflowCarousels(options: InitCoverflowCarouselsOptions = 
     onChange,
     onScratchComplete,
     stylesheet,
+    styleOverrides,
   } = options;
   const elements = Array.from(document.querySelectorAll<HTMLElement>(selector));
 
@@ -55,6 +57,14 @@ export function initCoverflowCarousels(options: InitCoverflowCarouselsOptions = 
 
       if (typeof stylesheet === 'string') cfc.adoptStyles(stylesheet);
       else cfc.adoptStylesheet(stylesheet);
+    });
+  }
+
+  if (styleOverrides) {
+    elements.forEach((el) => {
+      const cfc = el as unknown as CoverflowCarouselElement;
+
+      cfc.adoptStyleOverrides(styleOverrides);
     });
   }
 
