@@ -49,7 +49,6 @@ registerCoverflowCarouselElement();
 import {
   registerCoverflowCarouselElement,
   initCoverflowCarousels,
-  coverflowCarouselCssText,
 } from 'coverflow-carousel';
 
 registerCoverflowCarouselElement();
@@ -73,34 +72,38 @@ initCoverflowCarousels({
     else if (detail.index === 1) (el as any).goTo?.(2);
     else if (detail.index === 2) console.log('final');
   },
-  // Optional styles:
-  // - CSSStyleSheet (constructable stylesheet)
-  // - string (e.g. imported via ?raw)
-  // stylesheet: coverflowCarouselCssText,
-  //
-  // Optional overrides (applied on top of the base stylesheet):
-  // styleOverrides: `
-  //   .cfc { --cfc-card-ar-num: 1.6; }
-  //   .cfc__arrow { background: Black; }
-  // `,
 });
 ```
 
-<sub>JS: custom styles from `?raw` (CSS/SCSS)</sub>
+<sub>Recommended: single overrides file (`?raw`) — variables + rules in one place</sub>
 ```javascript
 import { registerCoverflowCarouselElement, initCoverflowCarousels } from 'coverflow-carousel';
-import MyCfcCss from './assets/cfc.custom.css?raw';
-import MyCfcOverrides from './assets/cfc.overrides.css?raw';
+import CfcOverrides from './assets/cfc.overrides.css?raw';
 
 registerCoverflowCarouselElement();
 
 initCoverflowCarousels({
-  stylesheet: MyCfcCss,
-  styleOverrides: MyCfcOverrides,
+  styleOverrides: CfcOverrides,
 });
 ```
 
-<sub>JS: default styles shipped with the package</sub>
+<sub>`cfc.overrides.css` example</sub>
+```css
+:host {
+  /* CSS variables (override defaults) */
+  --cfc-card-ar-num: 1.6;
+}
+
+/* Example rule: only active slide is interactive */
+.cfc__card slot::slotted(*) {
+  pointer-events: none;
+}
+.cfc__card[data-active="true"] slot::slotted(*) {
+  pointer-events: auto;
+}
+```
+
+<sub>Advanced: replace base styles completely</sub>
 ```javascript
 import {
   registerCoverflowCarouselElement,
@@ -113,13 +116,6 @@ registerCoverflowCarouselElement();
 initCoverflowCarousels({
   stylesheet: coverflowCarouselCssText,
 });
-```
-
-<sub>CSS: override CSS variables (recommended for simple tweaks)</sub>
-```css
-coverflow-carousel {
-  --cfc-card-ar-num: 1.6;
-}
 ```
 
 <sub>JS: manual control (prev/next/goTo/refresh)</sub>
@@ -147,7 +143,6 @@ el?.refresh();
 |      `index`       | `number`  |    —    | Current index. If you update it externally, the carousel will animate to it. The component also reflects the current value back into `index`.  |
 |    `show-dots`     | `boolean` | `false` | Shows pagination dots (decorative, non-interactive).                                                                                           |
 |   `show-arrows`    | `boolean` | `false` | Shows Prev/Next arrows.                                                                                                                        |
-| `announce-changes` | `boolean` | `true`  | Enables slide-change announcements via live-region (a11y).                                                                                     |
 
 <br>
 

@@ -1,6 +1,6 @@
 {
   "name": "coverflow-carousel",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Tiny coverflow carousel Web Component. Exposes API via attributes + events (explicit element registration).",
   "author": "ux-ui.pro",
   "license": "MIT",

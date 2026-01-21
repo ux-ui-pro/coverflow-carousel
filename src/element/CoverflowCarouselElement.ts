@@ -24,13 +24,7 @@ interface CardState {
 export class CoverflowCarouselElement extends HTMLElement {
   static defaultStylesheet: CSSStyleSheet | null = DEFAULT_STYLESHEET;
 
-  static observedAttributes = [
-    'start-index',
-    'index',
-    'show-dots',
-    'show-arrows',
-    'announce-changes',
-  ];
+  static observedAttributes = ['start-index', 'index', 'show-dots', 'show-arrows'];
 
   private readonly shadow = this.attachShadow({ mode: 'open' });
 
@@ -41,7 +35,6 @@ export class CoverflowCarouselElement extends HTMLElement {
   private dotsEl!: HTMLElement;
   private prevBtn!: HTMLButtonElement;
   private nextBtn!: HTMLButtonElement;
-  private liveRegion!: HTMLElement;
 
   private baseStyles: StylesInput = null;
   private overrideStyles: StylesInput = null;
@@ -109,7 +102,7 @@ export class CoverflowCarouselElement extends HTMLElement {
       }
     }
 
-    this.applyLayoutAndA11y({ announce: true, emitChange: false });
+    this.applyLayoutAndA11y({ emitChange: false });
   }
 
   public next(): void {
@@ -132,7 +125,7 @@ export class CoverflowCarouselElement extends HTMLElement {
 
     this.reflectIndexAttr();
 
-    this.applyLayoutAndA11y({ announce: true, emitChange: true });
+    this.applyLayoutAndA11y({ emitChange: true });
     this.lockUntilTransitionEnd();
   }
 
@@ -163,7 +156,7 @@ export class CoverflowCarouselElement extends HTMLElement {
     this.lastLayoutIndex = null;
     this.lastVisibleSet = new Set();
 
-    this.applyLayoutAndA11y({ announce: true, emitChange: false });
+    this.applyLayoutAndA11y({ emitChange: false });
     this.dispatchReady();
 
     if (observer) {
@@ -244,12 +237,7 @@ export class CoverflowCarouselElement extends HTMLElement {
     this.dotsEl = document.createElement('div');
     this.dotsEl.className = 'cfc__dots';
 
-    this.liveRegion = document.createElement('div');
-    this.liveRegion.className = 'cfc__sr';
-    this.liveRegion.setAttribute('aria-live', 'polite');
-    this.liveRegion.setAttribute('aria-atomic', 'true');
-
-    this.rootEl.append(this.trackEl, this.prevBtn, this.nextBtn, this.dotsEl, this.liveRegion);
+    this.rootEl.append(this.trackEl, this.prevBtn, this.nextBtn, this.dotsEl);
 
     this.shadow.innerHTML = '';
 
@@ -536,7 +524,7 @@ export class CoverflowCarouselElement extends HTMLElement {
     }
   }
 
-  private applyLayoutAndA11y(opts: { announce: boolean; emitChange: boolean }): void {
+  private applyLayoutAndA11y(opts: { emitChange: boolean }): void {
     if (!this.cards.length) return;
 
     if (!this.hasAppliedInitialLayout) {
@@ -584,10 +572,6 @@ export class CoverflowCarouselElement extends HTMLElement {
     }
 
     this.updateDotsVisualState();
-
-    if (opts.announce && hasBoolAttr(this, 'announce-changes', true)) {
-      this.announce(`Slide ${this.currentIndex + 1} of ${this.cards.length}`);
-    }
 
     if (opts.emitChange) {
       this.emitChange();
@@ -673,14 +657,6 @@ export class CoverflowCarouselElement extends HTMLElement {
         detail: { index: this.currentIndex, length: this.cards.length },
       }),
     );
-  }
-
-  private announce(text: string): void {
-    this.liveRegion.textContent = '';
-
-    queueMicrotask(() => {
-      this.liveRegion.textContent = text;
-    });
   }
 
   private reflectIndexAttr(): void {
